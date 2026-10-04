@@ -1,0 +1,196 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Northgate Holdings — Security Operations</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="style.css" />
+</head>
+<body>
+
+<header class="topbar">
+  <div class="topbar-left">
+    <button class="brand" id="btnHome" title="Alert queue">
+      <span class="brand-mark">◈</span>
+      <span class="brand-text">Northgate Holdings <em>· Security Operations</em></span>
+    </button>
+  </div>
+  <div class="topbar-right">
+    <span class="clock" id="clock"></span>
+  </div>
+</header>
+
+<div class="app">
+
+  <!-- ===================== ALERT QUEUE ===================== -->
+  <section id="view-queue" class="view">
+    <div class="queue-head">
+      <h1>Alert queue</h1>
+      <p class="muted">3 alerts &middot; last 72 hours</p>
+    </div>
+    <table class="alert-table" id="alertTable">
+      <thead>
+        <tr><th></th><th>Alert</th><th>Account</th><th>Created</th><th>Status</th></tr>
+      </thead>
+      <tbody id="alertRows"></tbody>
+    </table>
+  </section>
+
+  <!-- ===================== INVESTIGATION ===================== -->
+  <section id="view-case" class="view" hidden>
+    <aside class="case-nav">
+      <button class="case-nav-back" id="btnBack">&larr; Alert queue</button>
+      <div class="case-id">CASE-2026-0093</div>
+      <nav>
+        <button class="step" data-step="triage"><span class="step-num">1</span>Triage the alert</button>
+        <button class="step" data-step="baseline"><span class="step-num">2</span>Baseline &amp; compare</button>
+        <button class="step" data-step="hunt"><span class="step-num">3</span>Hunt backwards</button>
+        <button class="step" data-step="persistence"><span class="step-num">4</span>Persistence &amp; actions</button>
+        <button class="step" data-step="report"><span class="step-num">5</span>Report &amp; close</button>
+      </nav>
+      <div class="case-status">
+        <div class="case-status-label">Case status</div>
+        <div class="case-status-value" id="caseStatusPill">New</div>
+      </div>
+    </aside>
+
+    <main class="case-main">
+
+      <!-- STEP 1: TRIAGE -->
+      <div class="panel" id="panel-triage">
+        <h2>Triage the alert</h2>
+        <p class="lede">Confirm whether the impossible-travel alert is a true anomaly worth investigating.</p>
+        <div class="alert-card" id="triageAlertCard"></div>
+        <div class="grid-2">
+          <div class="card">
+            <h3>What we do</h3>
+            <ul class="checklist">
+              <li>Open the alert and identify the affected user</li>
+              <li>Pull sign-in logs for that user around the alert time</li>
+              <li>Validate whether the login is explainable (travel, VPN) or not</li>
+            </ul>
+          </div>
+          <div class="card">
+            <h3>Sign-in that triggered the alert</h3>
+            <div id="triageSignin" class="kv"></div>
+          </div>
+        </div>
+        <button class="btn btn-primary" data-goto="baseline">Continue to baseline &amp; compare →</button>
+      </div>
+
+      <!-- STEP 2: BASELINE -->
+      <div class="panel" id="panel-baseline" hidden>
+        <h2>Baseline &amp; compare</h2>
+        <p class="lede">Learn what's normal for this user, then compare the flagged sign-in against it — and against a known false positive.</p>
+
+        <div class="grid-2">
+          <div class="card">
+            <h3>Marcus Webb — baseline (last 14 days)</h3>
+            <div id="baselineCeo"></div>
+          </div>
+          <div class="card">
+            <h3>Flagged sign-in vs. baseline</h3>
+            <div id="compareCeo"></div>
+          </div>
+        </div>
+
+        <div class="card" style="margin-top:16px">
+          <h3>For comparison — a real false positive</h3>
+          <p class="muted small">Priya Anand also triggered an "atypical travel" alert around the same time. Here's why analysts closed it as benign.</p>
+          <div id="compareFp"></div>
+        </div>
+
+        <button class="btn btn-primary" data-goto="hunt">Continue to hunt backwards →</button>
+      </div>
+
+      <!-- STEP 3: HUNT -->
+      <div class="panel" id="panel-hunt" hidden>
+        <h2>Hunt backwards — how did they get in?</h2>
+        <p class="lede">Run KQL against <code>SigninLogs</code> and <code>AuditLogs</code> to find the attacker's entry point.</p>
+
+        <div class="card">
+          <h3>KQL query console</h3>
+          <div class="kql-examples">
+            <span class="muted small">Try:</span>
+            <button class="chip" data-q="spray">Password spray by IP</button>
+            <button class="chip" data-q="ceo">All sign-ins for the CEO</button>
+            <button class="chip" data-q="breach">Successful attacker sign-in</button>
+            <button class="chip" data-q="audit">Audit log actions from attacker IP</button>
+          </div>
+          <textarea id="kqlInput" spellcheck="false">SigninLogs
+| where ResultType == 50126
+| summarize count() by IPAddress, bin(TimeGenerated, 1h)
+| where count_ > 20
+| order by count_ desc</textarea>
+          <div class="kql-actions">
+            <button class="btn btn-primary" id="btnRunKql">Run query</button>
+            <span id="kqlStatus" class="muted small"></span>
+          </div>
+          <div id="kqlResults" class="kql-results"></div>
+        </div>
+
+        <div class="card" id="huntTimelineCard" style="margin-top:16px">
+          <h3>Reconstructed attack timeline</h3>
+          <div id="huntTimeline" class="timeline"></div>
+        </div>
+
+        <button class="btn btn-primary" data-goto="persistence">Continue to persistence &amp; actions →</button>
+      </div>
+
+      <!-- STEP 4: PERSISTENCE -->
+      <div class="panel" id="panel-persistence" hidden>
+        <h2>Check persistence &amp; malicious actions</h2>
+        <p class="lede">Attackers often stay quiet after initial access. Persistence is the real danger — confirm what they set up, then shut it down.</p>
+
+        <div class="card">
+          <h3>Audit log — actions from the attacker's session</h3>
+          <div id="persistenceAudit" class="audit-list"></div>
+        </div>
+
+        <div class="card" style="margin-top:16px">
+          <h3>Containment checklist</h3>
+          <p class="muted small">Each action is logged to the case file and reflected in the final report.</p>
+          <div id="containmentList" class="containment-list"></div>
+        </div>
+
+        <button class="btn btn-primary" data-goto="report">Continue to report &amp; close →</button>
+      </div>
+
+      <!-- STEP 5: REPORT -->
+      <div class="panel" id="panel-report" hidden>
+        <h2>Report &amp; close</h2>
+        <p class="lede">MITRE ATT&amp;CK mapping, analyst notes, and a generated incident report ready to hand to the client.</p>
+
+        <div class="card">
+          <h3>MITRE ATT&amp;CK mapping</h3>
+          <div id="mitreList" class="mitre-list"></div>
+        </div>
+
+        <div class="card" style="margin-top:16px">
+          <h3>Analyst notes</h3>
+          <div id="notesList" class="notes-list"></div>
+          <div class="note-input">
+            <input type="text" id="noteInput" placeholder="Add a note to the case file…" />
+            <button class="btn" id="btnAddNote">Add</button>
+          </div>
+        </div>
+
+        <div class="card report-card" style="margin-top:16px">
+          <div class="report-card-head">
+            <h3>Incident report</h3>
+            <button class="btn btn-primary" id="btnDownloadReport">Download .md</button>
+          </div>
+          <pre id="reportPreview" class="report-preview"></pre>
+        </div>
+      </div>
+
+    </main>
+  </section>
+
+</div>
+
+<script src="app.js"></script>
+</body>
+</html>
